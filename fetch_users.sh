@@ -3,22 +3,22 @@ set -euo pipefail
 
 usage() {
   cat <<USAGE
-Usage: ${0##*/} [-t TOKEN] [-a ACCOUNT_ID] [options]
+Usage: ${0##*/} [-t TOKEN] [options]
 
 Options:
   -t, --token TOKEN           Social WiFi API token. Can also be set with SOCIALWIFI_TOKEN.
-  -a, --account-id ID         Account identifier (UUID). Can also be set with SOCIALWIFI_ACCOUNT_ID.
   -v, --venue-id ID           Venue identifier (UUID). Can also be set with SOCIALWIFI_VENUE_ID. (default: c713c145-79c7-46f5-ac8d-b4ff8b17d046)
   -b, --base-url URL          Base URL for the API (default: https://api.socialwifi.com).
   -s, --page-size NUMBER      Page size for paginated requests (default: 100).
+  -S, --sort FIELD            Sort parameter (default: -last_visit_on).
   -o, --output FILE           Save JSON output to FILE instead of stdout.
-  -f, --filter QUERY          Extra query string appended to the query (e.g. "project=UUID").
-  -A, --auth-scheme SCHEME    Authorization scheme (default: Token). Example values: Token, Bearer.
+  -f, --filter QUERY          Extra query string appended to the query (e.g. "filter[project]=UUID").
+  -A, --auth-scheme SCHEME    Authorization scheme (default: Bearer). Example values: Bearer, Token.
   -h, --help                  Show this help message.
 
 Examples:
-  SOCIALWIFI_TOKEN="token" SOCIALWIFI_ACCOUNT_ID=abc-123 ./fetch_users.sh
-  ./fetch_users.sh -t token -a abc-123 -s 50 -f "project=uuid" -o usuarios.json
+  SOCIALWIFI_TOKEN="token" ./fetch_users.sh
+  ./fetch_users.sh -t token -s 50 -S last_visit_on -f "filter[project]=uuid" -o usuarios.json
 USAGE
 }
 
@@ -33,22 +33,18 @@ require_cmd curl
 require_cmd jq
 
 TOKEN=${SOCIALWIFI_TOKEN:-}
-ACCOUNT_ID=${SOCIALWIFI_ACCOUNT_ID:-}
 VENUE_ID=${SOCIALWIFI_VENUE_ID:-"c713c145-79c7-46f5-ac8d-b4ff8b17d046"}
 BASE_URL=${SOCIALWIFI_BASE_URL:-"https://api.socialwifi.com"}
 PAGE_SIZE=${SOCIALWIFI_PAGE_SIZE:-100}
+SORT=${SOCIALWIFI_SORT:-"-last_visit_on"}
 OUTPUT=${SOCIALWIFI_OUTPUT:-}
 FILTER=${SOCIALWIFI_FILTER:-}
-AUTH_SCHEME=${SOCIALWIFI_AUTH_SCHEME:-Token}
+AUTH_SCHEME=${SOCIALWIFI_AUTH_SCHEME:-Bearer}
 
 while (($#)); do
   case "$1" in
     -t|--token)
       TOKEN=$2
-      shift 2
-      ;;
-    -a|--account-id)
-      ACCOUNT_ID=$2
       shift 2
       ;;
     -v|--venue-id)
@@ -61,6 +57,10 @@ while (($#)); do
       ;;
     -s|--page-size)
       PAGE_SIZE=$2
+      shift 2
+      ;;
+    -S|--sort)
+      SORT=$2
       shift 2
       ;;
     -o|--output)
@@ -100,12 +100,6 @@ if [[ -z "$TOKEN" ]]; then
   exit 1
 fi
 
-if [[ -z "$ACCOUNT_ID" ]]; then
-  echo "Error: account id is required." >&2
-  usage >&2
-  exit 1
-fi
-
 if [[ -z "$VENUE_ID" ]]; then
   echo "Error: venue id is required." >&2
   usage >&2
@@ -122,7 +116,11 @@ while [[ -n "$SANITIZED_FILTER" && ( ${SANITIZED_FILTER:0:1} == '?' || ${SANITIZ
   SANITIZED_FILTER=${SANITIZED_FILTER:1}
 done
 
-next_url="${BASE_URL%/}/api/accounts/${ACCOUNT_ID}/users/?limit=$PAGE_SIZE&venue=${VENUE_ID}"
+next_url="${BASE_URL%/}/users/user-data/?filter[venue]=${VENUE_ID}&page[number]=1&page[size]=$PAGE_SIZE"
+
+if [[ -n "$SORT" ]]; then
+  next_url+="&sort=$SORT"
+fi
 
 if [[ -n "$SANITIZED_FILTER" ]]; then
   next_url+="&$SANITIZED_FILTER"
@@ -133,13 +131,13 @@ all_results='[]'
 while [[ -n "$next_url" ]]; do
   if ! response=$(curl -fsSL \
     -H "Authorization: $AUTH_SCHEME $TOKEN" \
-    -H "Accept: application/json" \
+    -H "Accept: application/vnd.api+json" \
     "$next_url"); then
     echo "Error: request failed for $next_url" >&2
     exit 1
   fi
 
-  page_results=$(printf '%s' "$response" | jq -c 'if has("data") then .data elif has("results") then .results else [] end')
+  page_results=$(printf '%s' "$response" | jq -c '(.data // [])')
   all_results=$(jq -s 'add' <(printf '%s' "$all_results") <(printf '%s' "$page_results"))
 
   next_url=$(printf '%s' "$response" | jq -r '(.links.next // .next // "")')
