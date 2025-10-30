@@ -1,13 +1,13 @@
 # Social WiFi user fetcher
 
-Script de ejemplo para consultar la API de Social WiFi y descargar todos los usuarios de una cuenta.
+Script de ejemplo para consultar la API de Social WiFi y descargar los datos de usuarios de un proyecto.
 
 ## Requisitos
 
 - `curl`
 - `jq`
 - Token de API válido (`SOCIALWIFI_TOKEN`)
-- Identificador de la cuenta (`SOCIALWIFI_ACCOUNT_ID`)
+- Identificador del proyecto (`SOCIALWIFI_PROJECT_ID`)
 
 ## Uso
 
