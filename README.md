@@ -7,8 +7,7 @@ Script de ejemplo para consultar la API de Social WiFi y descargar los datos de 
 - `curl`
 - `jq`
 - Token de API válido (`SOCIALWIFI_TOKEN`)
-- Identificador de la cuenta (`SOCIALWIFI_ACCOUNT_ID`)
-- Identificador del venue (`SOCIALWIFI_VENUE_ID`, opcional si se usa el valor por defecto)
+- Identificador del proyecto (`SOCIALWIFI_PROJECT_ID`)
 
 ## Uso
 
